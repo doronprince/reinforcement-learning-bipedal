@@ -99,15 +99,15 @@ rl_model = SAC(
     verbose=1,
     tensorboard_log="./tensorboard_logs/bipedal_finetune/",
     device=device,
-    train_freq=(1, "episode"),  # Use SAC default
-    gradient_steps=-1  # Use SAC default
+    # Same SAC hyperparameters as train_sac_scratch.py (SB3 defaults:
+    # train_freq=1 step, gradient_steps=1) so the only difference is the BC start.
 )
 
 # --- 4. [HYBRID STEP] Load the pre-trained weights ---
 # We load the BC weights into the SAC agent's actor network
 # Note: The SAC actor has `latent_pi` (our `network`) and `mu` (our `action_head`)
 # We need to map them correctly.
-bc_state_dict = torch.load(BC_MODEL_SAVE_PATH)
+bc_state_dict = torch.load(BC_MODEL_SAVE_PATH, map_location=device)
 actor_state_dict = rl_model.policy.actor.state_dict()
 
 # Map the BC network weights to the SAC actor's `latent_pi`
@@ -122,8 +122,8 @@ actor_state_dict["mu.bias"] = bc_state_dict["action_head.bias"]
 
 # Load the modified state dict into the actor
 rl_model.policy.actor.load_state_dict(actor_state_dict)
-# We must also update the target network for stability
-rl_model.policy.actor_target.load_state_dict(actor_state_dict)
+# Note: SB3's SAC keeps a target network only for the critic (critic_target),
+# not for the actor, so there is no actor target to update here.
 
 print("BC weights successfully transferred to SAC actor.")
 
